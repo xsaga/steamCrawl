@@ -1,0 +1,510 @@
+---
+title: "Exploración de datos Steam"
+subtitle: "EAD Exploración y Análisis de Datos"
+author: "Xabier Sáez de Cámara"
+date: "`r format(Sys.time(), '%A, %d de %B %Y')`"
+output:
+  pdf_document:
+    df_print: kable
+    toc: true
+    toc_depth: 2
+    number_sections: true
+---
+
+# Explicar variables
+
+Las variables que he tenido en cuenta son:
+
+* `steamid` :
+* `nJuegos` :
+* `Indie` :
+* `Action` :
+* `Adventure` :
+* `Strategy` :
+* `Simulation` :
+* `RPG` :
+* `Free.to.Play` :
+* `Early.Access` :
+* `Massively.Multiplayer` :
+* `Sports` :
+* `Violent` :
+* `Racing` :
+* `Multiplayer` :
+* `Singleplayer` :
+* `Gore` :
+* `Puzzle` :
+* `Horror` :
+* `Shooter` :
+* `FPS` :
+* `First.Person` :
+* `Survival` :
+* `Difficult` :
+* `Rogue.like` :
+* `Platformer` :
+* `Turn.Based.Strategy` :
+* `Psychological.Horror` :
+* `Action.RPG` :
+* `RTS` :
+* `MMORPG` :
+* `JRPG` :
+* `Zombies` :
+
+
+
+```{r}
+###########IDEAS########
+### referencias
+# https://steam.internet.byu.edu/oneill-condensing-steam.pdf
+# https://steamid.eu/
+# https://www.reddit.com/r/Steam/comments/2qtrrx/so_you_think_gabe_newell_can_play_any_game_he/
+# http://steamspy.com/api.php?request=appdetails&appid=479130
+# 
+### cosas que poner
+# spider charts para definir a cada usuario: http://www.r-graph-gallery.com/portfolio/spider-radar-chart/
+#
+
+library(ggplot2)
+library(gridExtra)# grid.arrange
+library(reshape2) # melt
+library(fmsb)     # radarchart
+library(scatterplot3d)
+library(NbClust)
+library(cluster)
+```
+
+
+
+
+```{r}
+### cargar los datos
+steam <- read.csv("/home/xabier/Documentos/src/steamCrawl/tagsData.csv",
+                  colClasses=c(steamid="character"))
+valve <- read.csv("/home/xabier/Documentos/src/steamCrawl/valveemployee.csv",
+                  colClasses=c(steamid="character", VALVE="factor"))
+all(steam$steamid == valve$steamid)
+```
+
+```{r}
+head(steam[,1:8])
+```
+
+
+```{r}
+#####~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#####     
+### EXPLORACION Y VISUALIZACION DE LOS DATOS ###
+#####~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#####
+
+### orden de las variables(generos) agrupados por temas
+orden.generos <- c(3,9,10,11,15,16,12,14,            # otros y deportes
+                   6,27,7,18,26,24,25,30,8,29,31,32, # estrategia
+                   23,28,19,33,17,                   # horror
+                   13,20,21,22,4,5)                  # violento y accion
+colnames(steam[orden.generos])
+
+summary(steam)
+summary(valve)
+table(valve$VALVE)
+```
+
+
+
+
+```{r}
+# crear un nuevo data.frame ordenado por el numero de juegos para comparar el numero de juegos que
+# tienen los empleados de valve
+valve.order <- valve[order(valve$nJuegos),]
+```
+
+```{r}
+#plot(valve.order$nJuegos, main="Numero de juegos por usuario", xlab="Indice", ylab="Juegos",
+#     pch=19, col=c("blue", "red")[valve.order$VALVE], cex=c(1, 1.5)[valve.order$VALVE])
+#points(x=c(10, 10), y=c(6000, 5000), pch=19, col=c("red", "blue"), cex=c(1.5, 1))
+#text(x=c(50, 50), y=c(6000, 5000), labels=c("Empleados de Valve", "Usuarios normales"), cex=0.75)
+```
+
+```{r}
+## Numero de juegos ordenado de menor a mayor
+## separando usuarios normales de los empleados de valve
+plot1 <- ggplot(valve.order, aes(x=c(1:nrow(valve.order)), y=nJuegos, color=VALVE))+
+    geom_point(size=3, alpha=0.6)+
+    labs(x="Indice", y="")+
+    theme(plot.title = element_text(hjust = 0.5), legend.position="right")
+
+plot2 <- ggplot(valve, aes(x=VALVE, y=nJuegos, col=VALVE))+
+    geom_boxplot(outlier.size=3)+
+    labs(y="Numero de juegos")+
+    theme(legend.position="none")
+
+grid.arrange(plot2, plot1, ncol=2)
+```
+
+
+```{r}
+#hist(steam$nJuegos, breaks=seq(0, 6600, 200))
+#ggplot(steam, aes(x=nJuegos))+geom_histogram(binwidth=100, aes(fill = ..count..))
+
+## histograma de numero de juegos bins de 20 juegos de ancho, el ultimo bin representa
+## el numero de usuarios con mas de 800 juegos
+```
+
+
+```{r}
+ggplot(steam, aes(x=nJuegos))+
+    geom_histogram(breaks=c(seq(0,800,20), max(steam$nJuegos)), aes(fill = ..count..))+
+    coord_cartesian(xlim=c(0,800))+
+    annotate(geom="text", x=790, y=15, label="800+\njuegos")+
+    labs(title="Histograma de numero de juegos", x="Numero de juegos")+
+    theme(plot.title = element_text(hjust = 0.5))
+```
+
+
+
+```{r}
+## bar plot del conteo total de etiquetas por genero
+## ordenado de mayor a menor
+total.genero <- data.frame(genero=colnames(steam)[3:ncol(steam)], total=sapply(steam[,3:ncol(steam)],sum))
+total.genero <- total.genero[order(total.genero$total, decreasing=FALSE),]
+
+# para que ggplot no los ordene alfabeticamente
+total.genero$genero <- factor(total.genero$genero, levels=total.genero$genero)
+
+ggplot(data=total.genero, aes(x=genero, y=total, color=genero, fill=genero))+
+    geom_bar(stat="identity", width=0.7)+
+    geom_text(aes(label=total), hjust=-0.1, size=4)+
+    theme(legend.position="none")+
+    coord_flip()
+```
+
+
+```{r}
+## quitar outliers
+## considerar outlier a jugadores con mas de 1000 juegos
+outliers <- which(steam$nJuegos > 1000)
+outliers
+
+steam.filtrado <- steam[-outliers,]
+rownames(steam.filtrado) <- 1:nrow(steam.filtrado)
+valve.filtrado <- valve[-outliers,]
+rownames(valve.filtrado) <- 1:nrow(valve.filtrado)
+```
+
+```{r}
+## boxplots del numero de juegos
+## comparativa entre singleplayer y multiplayer
+## comparar todos los generos
+## http://www.r-graph-gallery.com/portfolio/boxplot/
+## https://flowingdata.com/2008/02/15/how-to-read-and-use-a-box-and-whisker-plot/
+```
+
+
+```{r}
+summary(steam.filtrado$nJuegos)
+```
+
+```{r}
+# numero de juegos
+steam.molten <- melt(steam.filtrado, id.vars="steamid",
+                     measure.vars="nJuegos")
+ggplot(steam.molten, aes(x=variable, y=value))+
+    geom_boxplot(fill="slateblue")
+
+# singleplayer vs multiplayer
+# punto verde representa la media
+steam.molten <- melt(steam.filtrado, id.vars="steamid",
+                     measure.vars=c("Singleplayer", "Multiplayer"))
+ggplot(steam.molten, aes(x=variable, y=value, fill=variable))+
+    geom_boxplot()+
+    stat_summary(fun.y=mean, geom="point", shape=20, size=4, color="green", fill="green")+
+    theme(legend.position="none")
+
+# todos los generos
+steam.molten <- melt(steam.filtrado, id.vars="steamid",
+                     measure.vars=total.genero$genero)
+ggplot(steam.molten, aes(x=variable, y=value, fill=variable, color=variable))+
+    geom_boxplot(alpha=0.5)+
+    theme(legend.position="none")+
+    coord_flip()
+```
+
+```{r}
+## radarcharts
+## funcion para plotear un radarchart que compare a dos individuos
+## http://blog.scottlogic.com/2011/09/23/a-critique-of-radar-charts.html
+radchart2 <- function(data1, data2){
+    name1 <- data1$steamid
+    name2 <- data2$steamid
+    # ordenar las columnas para que en el radarchart
+    # se queden agrupados las etiquetas de generos similares
+    # dch=violento / izq=estrategia / abajo=horror / arriba=otros,deporte
+    data1 <- data1[orden.generos]
+    data2 <- data2[orden.generos]
+    
+    len <- ncol(data1)
+    maximo <- max(c(as.integer(data1), as.integer(data2)))
+    # las primeras dos filas tienen que ser el maximo y el minimo.
+    data <- rbind(rep(maximo, len), rep(0, len), data1, data2)
+    
+    # http://www.r-graph-gallery.com/143-spider-chart-with-saveral-individuals/
+    colors_border=c( rgb(0.2,0.5,0.5,0.9), rgb(0.8,0.2,0.5,0.9))
+    colors_in=c( rgb(0.2,0.5,0.5,0.4), rgb(0.8,0.2,0.5,0.4))
+    radarchart( data, axistype=1, pty=32,
+                #custom polygon
+                pcol=colors_border, pfcol=colors_in, plwd=1, plty=1,
+                #custom the grid
+                cglcol="grey", cglty=1, axislabcol="grey", cglwd=0.8,
+                #custom labels
+                vlcex=0.6
+    )
+    legend(x=1, y=1, legend=c(name1, name2), bty="n", pch=20,
+           col=colors_in, text.col = "black", cex=0.5, pt.cex=1)
+}
+# ejemplo accion (num 96) vs estrategia (num 223)
+radchart2(steam.filtrado[96,], steam.filtrado[223,])
+```
+```{r}
+## correlacion de steam sin outliers
+correlacion <- cor(steam.filtrado[-c(1,2)])
+## ordenar las variables por generos similares
+cor.orden <- correlacion[orden.generos-2, orden.generos-2]
+```
+
+```{r}
+## funcion para conseguir las n variables
+## mas correladas de la variable 'nombre'
+maxcor <- function(nombre, datos, n=3){
+    res <- sort(datos[nombre, ], decreasing=TRUE)
+    return(res[2:(1+n)])
+}
+mincor <- function(nombre, datos, n=3){
+    res <- sort(datos[nombre, ], decreasing=FALSE)
+    return(res[2:(1+n)])
+}
+maxcor("Shooter", correlacion)
+mincor("Shooter", correlacion)
+```
+
+```{r}
+# ordena los valores de la matriz de correlacion de mayor a menor
+# y quita los duplicados.
+cor.vals <- unique(sort(correlacion, decreasing=TRUE))[-1]
+paresCorrelados <- function(vals, n){
+    res <- matrix(nrow=n, ncol=1)
+    for(i in 1:n){
+        # busca los indices que tiene el valor de correlacion 'cor.vals[i]'
+        # dentro de la matriz de correlacion, y enseña los nombres de las variables
+        names <- row.names(which(correlacion == cor.vals[i], arr.ind=T))
+        res[i] <- paste(names[1], names[2], sep=" / ")
+    }
+    return(res)
+}
+paresCorrelados(cor.vals, 3)
+# la maxima correlacion qu hay en la matriz es de 0.9917623 (shooter y fps)
+# la segunda 0.9752353 (fps y first person)
+# la tercera 0.9718287 (shooter y first person)
+
+pairs(steam.filtrado[,c("Shooter", "FPS", "First.Person", "RTS")])
+pairs(steam.filtrado[,c("Difficult", "Platformer", "Rogue.like")])
+```
+
+
+```{r}
+## heatmap de la correlacion
+## practicamente todo es 'azul' pero hay diferencias
+qplot(x=Var1, y=Var2, data=melt(cor.orden), fill=value, geom="tile") +
+    scale_fill_gradient2(limits=c(-1, 1))+
+    theme(axis.text.x=element_text(angle = 45, hjust = 1, vjust=1),
+          plot.title = element_text(hjust = 0.5))+
+    labs(title="Heat map de la correlacion", x="", y="")
+```
+
+
+```{r}
+#####~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#####
+### PROCESADO Y ANALISIS DE LOS DATOS ###
+#####~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#####
+
+### ideas
+# -probar pca con las variables estandarizadas y sin estandarizar y elegir (sin estandarizar mejor creo)
+# -LEER ESTO: http://www.aaronschlegel.com/principal-component-analysis/
+#  Y ESTO: http://planspace.org/2013/02/03/pca-3d-visualization-and-clustering-in-r/
+# -primero hacer pca directamente sobre todas las variables
+#  y luego quitar las correladas de FPS y volver a hacer pca, comparar resultados
+# -hacer kmeans en las dos dimensiones de los componentes principales
+#  o hacer kmeans en todas las dimensiones y despues proyectarlo en 2?
+# -ordenar los datos segun la pertenencia a cada cluster y explorar
+### documentacion
+# https://stats.stackexchange.com/questions/222422/using-pca-to-model-highly-correlated-variables
+# https://stat.ethz.ch/pipermail/r-sig-ecology/2013-March/003624.html
+# https://stats.stackexchange.com/questions/50537/should-one-remove-highly-correlated-variables-before-doing-pca
+# https://www.reddit.com/r/statistics/comments/29owxj/correlated_variables_in_pca/
+###
+
+###### modo facil
+#http://rpubs.com/sinhrks/plot_pca
+#library(ggfortify)
+#autoplot(prcomp(steam.filtrado[-c(1,2)]), loadings=TRUE, loadings.label = TRUE, loadings.label.size=3)
+######
+```
+
+```{r}
+## hacer pca sin estandarizar las variables, solo centradas
+steam.pca <- prcomp(steam.filtrado[-c(1,2)], scale. = FALSE)
+summary(steam.pca)
+# scree graph de los 10 primeros autovalores
+plot(steam.pca, type="l")
+```
+
+```{r}
+# valores propios
+lambda <- steam.pca$sdev^2
+# hay que quedarse con las dos primeras componentes, pero voy a explorarlo con tres
+which(lambda > sum(lambda)/length(lambda))
+biplot(steam.pca)
+```
+
+```{r}
+# 2d
+plot(steam.pca$x[,1], steam.pca$x[,2])
+```
+
+```{r}
+pairs(steam.pca$x[,1:3])
+```
+
+```{r}
+steam.pca.x <- data.frame(steamid=steam.filtrado$steamid, nJuegos=steam.filtrado$nJuegos, steam.pca$x)
+# plot bonito con un gradiente de colores que muestra el numero de juegos
+# aunque la variable nJuegos no se haya icluido en el PCA, esta claro que PC1 esta
+# relacionado con el numero de juegos
+ggplot(steam.pca.x , aes(x=PC1, y=PC2, color=nJuegos))+
+    geom_point(size=2)+
+    scale_color_gradient(low = "blue", high = "red")+
+    theme(legend.position = "right")
+```
+
+```{r}
+# interpretacion de los componentes
+cor(steam.filtrado[-c(1,2)], steam.pca$x[,1:3])
+
+interpretar <- function(indice, limite){
+    m <- cor(steam.filtrado[-c(1,2)], steam.pca$x[,indice])
+    m <- m[abs(m[,1]) > limite,, drop=FALSE]
+    return(m)
+}
+interpretar(2, 0.3)
+```
+
+```{r}
+# 3d
+rbpal <- colorRampPalette(c("blue", "red"))
+scatterplot3d(steam.pca$x[,1], steam.pca$x[,3], steam.pca$x[,2], 
+              color = rbpal(10)[as.numeric(cut(steam.filtrado$nJuegos, breaks=10))], type="h", pch=21,
+              xlab="PC1", ylab="PC3", zlab="PC2")
+```
+
+```{r}
+## kmeans clustering
+# https://www.r-bloggers.com/finding-optimal-number-of-clusters/
+# http://www.sthda.com/english/wiki/print.php?id=239#three-popular-methods-for-determining-the-optimal-number-of-clusters
+set.seed(1939)
+
+datos <- steam.pca.x[-c(1,2)]
+#datos <- steam.pca.x[,3:5]
+all(datos == steam.pca$x)
+```
+
+```{r}
+kvals <- c(1:20)
+puntuacion <- vector()
+for(k in kvals){
+    km <- kmeans(datos, k, nstart=100, iter.max=100000)
+    puntuacion[k] <- km$betweenss/km$totss
+}
+puntuacion
+plot(puntuacion, type="b")
+plot(diff(puntuacion), type="b")
+abline(h=0.0)
+```
+
+```{r}
+distancias <- dist(datos, method="euclidean", diag=TRUE, upper=TRUE)^2
+
+km <- kmeans(datos, 2, nstart=100, iter.max=100000)
+silk <- silhouette(km$cluster, distancias)
+plot(silk, col=sort(unique(km$cluster))+1)
+
+avg.width <- vector(mode="numeric", length=length(kvals))
+for(k in 2:length(kvals)){
+    km <- kmeans(datos, k, nstart=100, iter.max=100000)
+    silk <- silhouette(km$cluster, distancias)
+    avg.width[k] <- summary(silk)$avg.width
+}
+#
+cbind(k=1:length(avg.width), avg.width=round(avg.width, digits=6))
+
+# Representación gráfica de la variación de 'avg.width' en función de 'k'
+plot(avg.width, type="b", las=1, xlab="k")
+axis(1, at=c(1,seq(0,20,5)))
+abline(v=c(1:4,seq(0,20,5)), col="gray")
+```
+
+```{r}
+#
+?NbClust
+```
+
+```{r}
+nb <- NbClust(datos, diss=distancias, distance=NULL, 
+              min.nc=2, max.nc=max(kvals), method="kmeans", 
+              index = "all")
+```
+
+```{r}
+par(mfrow=c(1,1))
+plot(steam.pca.x[,3], steam.pca.x[,4], col=nb$Best.partition)
+```
+
+
+```{r}
+###
+### de aqui abajo es lo que hice inicialmente...
+steam.pca <- prcomp(steam.filtrado[-c(1,2)], scale. = TRUE) # estandarizatuta etiketa guztiek pisu berdina
+steam.pca$sdev
+plot(steam.pca$sdev)
+biplot(steam.pca)
+
+plot(steam.pca$x[,1], steam.pca$x[,2])
+text(steam.pca$x[,1], steam.pca$x[,2], labels = rownames(steam))
+
+steam.pca <- prcomp(steam.filtrado[-c(1,2)], scale. = FALSE) # estandarizatu gabe, etiketa bakoitzak pisu desberdina daukate
+steam.pca$sdev
+plot(steam.pca$sdev)
+biplot(steam.pca)
+
+plot(steam.pca$x[,1], steam.pca$x[,2])
+text(steam.pca$x[,1], steam.pca$x[,2], labels = rownames(steam))
+
+############# ehunekotan ?¿?¿?¿?¿
+steam.percent = steam[-c(1,2)]/rowSums(steam[-c(1,2)])
+steam.percent.pca = prcomp(steam.percent, scale. = FALSE)
+plot(steam.percent.pca$sdev)
+biplot(steam.percent.pca)
+plot(steam.percent.pca$x[,1], steam.percent.pca$x[,2])
+text(steam.percent.pca$x[,1], steam.percent.pca$x[,2], labels = rownames(steam))
+#############
+
+## kmeans, hacer kmeans en las dos dimensiones de los componentes principales
+steam.pca2d <- steam.pca$x[,1:2]
+k <- 5
+km <- kmeans(steam.pca2d, k)
+str(km)
+km$cluster
+
+plot(steam.pca$x[,1], steam.pca$x[,2], type="n")
+text(steam.pca$x[,1], steam.pca$x[,2], labels = km$cluster, col=c("red", "green3", "blue", "black", "pink")[km$cluster])
+compocl <- vector("list", k)
+for(kcl in 1:k) compocl[[kcl]] <- which(km$cluster == kcl)
+compocl
+
+# hacer kmeans en todas las dimensiones y despues proyectarlo en 2??
+```
