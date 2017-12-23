@@ -3,6 +3,14 @@ title: "Exploración de datos Steam"
 subtitle: "EAD Exploración y Análisis de Datos"
 author: "Xabier Sáez de Cámara"
 date: "`r format(Sys.time(), '%A, %d de %B %Y')`"
+lang: es-ES
+urlcolor: blue
+abstract: |
+  linea uno
+  
+  linea dos.
+  bla bla bla.
+  
 output:
   pdf_document:
     df_print: kable
@@ -11,45 +19,73 @@ output:
     number_sections: true
 ---
 
-# Explicar variables
+# Objetivo
 
-Las variables que he tenido en cuenta son:
+El objetivo de este trabajo es explorar y visualizar datos que he extraído de la popular plataforma de distribución digital de videojuegos *Steam*^[http://store.steampowered.com/] creado por la compañía de desarrollo de videojuegos *Valve Corporation*^[http://www.valvesoftware.com/index.html]. *Steam* se publicó en el año 2002 como una plataforma para distribuir actualizaciones de sus juegos Half-Life y Counter-Strike e implementar sistemas anti piratería y anti trampas. Hoy en día es la mayor plataforma de distribución de videojuegos en PC, en el año 2017 se estima que tiene mas de 150 millones de cuentas registradas y ha alcanzado 17.5 millones de de usuarios conectados simultáneamente. Hasta la fecha de 23 de diciembre de 2017 hay 28877 productos disponibles en la tienda^[https://steamdb.info/genres/].
 
-* `steamid` :
-* `nJuegos` :
-* `Indie` :
-* `Action` :
-* `Adventure` :
-* `Strategy` :
-* `Simulation` :
-* `RPG` :
-* `Free.to.Play` :
-* `Early.Access` :
-* `Massively.Multiplayer` :
-* `Sports` :
-* `Violent` :
-* `Racing` :
-* `Multiplayer` :
-* `Singleplayer` :
-* `Gore` :
-* `Puzzle` :
-* `Horror` :
-* `Shooter` :
-* `FPS` :
-* `First.Person` :
-* `Survival` :
-* `Difficult` :
-* `Rogue.like` :
-* `Platformer` :
-* `Turn.Based.Strategy` :
-* `Psychological.Horror` :
-* `Action.RPG` :
-* `RTS` :
-* `MMORPG` :
-* `JRPG` :
-* `Zombies` :
+En concreto, el objetivo es extraer información de un numero reducido de usuarios de *Steam* como el numero de juegos y el numero de etiquetas que tiene cada jugador divido por géneros. Cada juego de *Steam* tiene asociadas unas etiquetas (tags) que definen el juego (ej: Acción, Estrategia, Aventuras...), la idea es conseguir una lista de todos los juegos que tiene un usuario y por cada juego extraer sus etiquetas. Después cada jugador se define con un vector en el espacio de las distintas etiquetas y el numero representa la frecuencia de aparición de una etiqueta en particular en su biblioteca de juegos. Por ejemplo el siguiente jugador:
+
+|Jugador|Juegos|Acción|Estrategia|Aventuras|
+|:-----:|:----:|:----:|:--------:|:-------:|
+|  1º   |  4   |   2  |     2    |    3    |
+
+Tiene en total 4 juegos en su biblioteca y de esos 4 juegos 2 tienen la etiqueta de Acción, otros 2 la etiqueta de Estrategia y 3 la de Aventuras. En el caso real se van a usar 31 etiquetas distintas.
+
+Primero se hará una exploración para visualizar los datos, después un análisis de componentes principales para la reducción de variables y finalmente un clustering para distinguir los jugadores en grupos.
+
+# Crear el dataset
+
+Todos los datos necesarios los he extraído de tres fuentes distintas que menciono brevemente en la siguiente subsección. El código fuente que he creado en Python3 está disponible en <https://github.com/xsaga/steamCrawl> en el archivo `steamcrawltags.py` (incluye comentarios).
+
+## Extraer los datos
+
+* **Descargar la lista de juegos de cada usuario:** Cada usuario de *Steam* tiene un identificador único (SteamID). Usando este identificador y la página oficial de la comunidad de *Steam* de cada usuario <http://steamcommunity.com/> se puede acceder al perfil de cada jugador (a no ser que el perfil sea privado). La lista de todos los juegos que tiene el usuario SteamID se puede acceder en esta dirección <http://steamcommunity.com/profiles/SteamID/games/?tab=all> sustituyendo [SteamID] por el identificador válido. En el código HTML de la página hay una variable `var rgGames` que contiene la lista detallada de los juegos en formato JSON^[JavaScript Object Notation] que se puede descargar fácilmente.
+
+* **Extraer las etiquetas de cada juego:** Después de descargar la lista de juegos de cada usuario vamos a extraer las etiquetas de cada juego usando la API pública que ofrece la página <https://steamspy.com/>. Cada juego tiene un identificador único que se puede usar para pedir la información. Por ejemplo, el juego *Half-Life 2* tiene el identificador 220 y se puede acceder a sus metadatos usando la siguiente dirección <http://steamspy.com/api.php?request=appdetails&appid=220> otra vez en formato JSON.
+
+* **Información adicional de cada usuario:** Es interesante saber la información básica de cada usuario, por ejemplo si el usuario es un empleado de *Valve Corporation*. Para ello se ha usado la siguiente página <https://steamid.eu/>
 
 
+## Explicar las variables
+
+En total se han usado 33 variables (2 de información general y 31 etiquetas de juegos), se han analizado 1500 usuarios distintos pero de esos solo 293 son validos (perfiles públicos y con al menos un juego). En total se han analizado las etiquetas de 10420 juegos distintos. Una breve explicación del significado de cada variable es la siguiente:
+
+* `steamid` : El SteamID es un identificador único para cada usuario de Steam.
+* `nJuegos` : El numero de juegos que tiene cada usuario.
+* `Indie` : Videojuegos independientes sin apoyo financiero de distribuidores. Pueden ser de cualquier género, pero suelen ser de estrategia, plataformas y similares.
+* `Action` : Acción.
+* `Adventure` : Aventuras.
+* `Strategy` : Estrategia en general.
+* `Simulation` : Juegos de simulación (conducción, vuelo, construcción...).
+* `RPG` : Role Playing Game.
+* `Free.to.Play` : Modelo de negocio en el que los juegos son gratuitos pero hay que pagar por añadidos dentro del juego como nuevos personajes o equipamiento.
+* `Early.Access` : Modelo de negocio en el que un juego que aun no está terminado se pone a la venta por un precio reducido. El dinero que se consigue con las ventas se usa para financiar el juego y terminarlo.
+* `Massively.Multiplayer` : Juegos multijugador con un numero masivo de usuarios jugando simultáneamente en el mismo servidor (puede ser mas de 100 personas).
+* `Sports` : Juegos de deportes.
+* `Violent` : Juegos violentos. Generalmente juegos de acción/disparos con un grado de violencia adicional.
+* `Racing` : Juegos de carreras.
+* `Multiplayer` : Juegos que tienen opción de multijugador online. Multiplayer y Singleplayer no son etiquetas exclusivas.
+* `Singleplayer` : Juegos que tienen modo de un solo jugador (modo historia). Multiplayer y Singleplayer no son etiquetas exclusivas.
+* `Gore` : Juegos con un grado de violencia mas explícita.
+* `Puzzle` : Juegos de ingenio en el que se van resolviendo distintos problemas.
+* `Horror` : Juegos de terror.
+* `Shooter` : Etiqueta genérica para juegos de disparos.
+* `FPS` : First Person Shooter. Shooters en primera persona.
+* `First.Person` : Juegos con la cámara en primera persona (a diferencia de la tercera persona).
+* `Survival` : Juegos de supervivencia. Recolectar recursos para fabricar objetos/armas y sobrevivir en un entorno hostil.
+* `Difficult` : Juegos difíciles en general.
+* `Rogue.like` : Juegos inspirados en el clásico juego 'Rogue'^[https://es.wikipedia.org/wiki/Rogue] de 1980. El jugador tiene que atravesar un entorno generado aleatoriamente y se caracteriza por ser difícil, largo y tener la mecánica de muerte permanente (después de morir se empieza de cero).  
+* `Platformer` : Juegos de habilidad y plataformas.
+* `Turn.Based.Strategy` : Estrategia por turnos.
+* `Psychological.Horror` : Juegos de terror sin violencia explícita.
+* `Action.RPG` : Action Role Playing Game.
+* `RTS` : Real Time Strategy (a diferencia de la estrategia por turnos).
+* `MMORPG` : Massive Multiplayer Online Role Playing Game.
+* `JRPG` : Japanese Rol Playing Game. Estilo diferente a los RPG occidentales.
+* `Zombies` : Juegos en el que intervienen de algún modo zombis.
+
+
+# Exploración de los datos
 
 ```{r}
 ###########IDEAS########
@@ -317,6 +353,8 @@ qplot(x=Var1, y=Var2, data=melt(cor.orden), fill=value, geom="tile") +
     labs(title="Heat map de la correlacion", x="", y="")
 ```
 
+
+# Procesado y análisis de los datos
 
 ```{r}
 #####~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#####
