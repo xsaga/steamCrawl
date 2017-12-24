@@ -19,7 +19,9 @@ def getSteamUserGameList(steamid):
     
     # el html descargado tiene una variable "rgGames" que contiene la lista de todos los juegos
     # del usuario en formato JSON. Se busca y se extrae la lista con una expresion regular
-    # (usar expresiones regulares en html no es una buena idea... pero funciona)
+    #
+    # !! usar expresiones regulares en html no es una buena idea... pero funciona
+    # LEER: https://stackoverflow.com/questions/1732348/regex-match-open-tags-except-xhtml-self-contained-tags
     gameListJson=re.findall(r'.*var rgGames = (.*);', res.text)
 
     # si el perfil es privado, no hay variable rgGames
