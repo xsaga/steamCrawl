@@ -1,12 +1,12 @@
 ---
-title: "Exploración de datos Steam"
+title: "Exploración de datos de la plataforma de videojuegos Steam"
 subtitle: "EAD Exploración y Análisis de Datos"
 author: "Xabier Sáez de Cámara"
 date: "`r format(Sys.time(), '%A, %d de %B %Y')`"
 lang: es-ES
 urlcolor: blue
 abstract: |
-  En este trabajo vamos a explorar una base de datos sobre unos usuarios de la plataforma de videojuegos Steam. La idea principal es hacer un análisis de componentes principales para poder visualizar todos los usuarios en un plano y después hacer clústering para clasificarlos en distintas categorias.
+  En este trabajo vamos a explorar un conjunto de datos sobre unos usuarios de la plataforma de distribución de videojuegos *Steam*. Cada usuario se va a definir con una serie de etiquetas que representan los distintos géneros de videojuegos que tiene en su biblioteca de juegos. La idea principal es hacer un análisis de componentes principales para poder visualizar la distribución de todos los usuarios en un plano y después hacer clústering para clasificarlos en distintas categorias y extraer conclusiones.
   
 output:
   pdf_document:
@@ -20,7 +20,7 @@ output:
 
 El objetivo de este trabajo es explorar y visualizar datos que he extraído de la popular plataforma de distribución digital de videojuegos *Steam*^[http://store.steampowered.com/] creado por la compañía de desarrollo de videojuegos *Valve Corporation*^[http://www.valvesoftware.com/index.html]. *Steam* se publicó en el año 2002 como una plataforma para distribuir actualizaciones de sus juegos Half-Life y Counter-Strike e implementar sistemas anti piratería y anti trampas. Hoy en día es la mayor plataforma de distribución de videojuegos en PC, en el año 2017 se estima que tiene más de 150 millones de cuentas registradas y ha alcanzado 17.5 millones de de usuarios conectados simultáneamente. Hasta la fecha de 23 de diciembre de 2017 hay 28877 productos disponibles en la tienda^[https://steamdb.info/genres/].
 
-En concreto, el objetivo es extraer información de un número reducido de usuarios de *Steam*, como el número de juegos y el número de etiquetas que tiene cada jugador divido por géneros. Cada juego de *Steam* tiene asociadas unas etiquetas (tags) que definen el juego (ej: Acción, Estrategia, Aventuras...), las etiquetas son asignadas por los jugadores. La idea es conseguir una lista de todos los juegos que tiene un usuario y por cada juego extraer sus etiquetas. Después cada jugador se define con un vector en el espacio de las distintas etiquetas y el número representa la frecuencia de aparición de una etiqueta en particular en su biblioteca de juegos. Por ejemplo el siguiente jugador (ejemplo inventado):
+En concreto, el objetivo es extraer información de un número reducido de usuarios de *Steam*, como el número de juegos y el número de etiquetas que tiene cada jugador divido por géneros. Cada juego de *Steam* tiene asociadas unas etiquetas (tags) que definen el juego (ej: Acción, Estrategia, Aventuras...), las etiquetas son asignadas por los jugadores. La idea es conseguir una lista de todos los juegos que tiene un usuario y por cada juego extraer sus etiquetas. Después cada jugador se define con un vector en el espacio de las distintas etiquetas. Para cada etiqueta (variable) el valor que toma representa las veces que ha salido esa etiqueta en la biblioteca de juegos del usuario. Por ejemplo el siguiente jugador (ejemplo inventado con solo 3 etiquetas):
 
 |Jugador|Juegos|Acción|Estrategia|Aventuras|
 |:-----:|:----:|:----:|:--------:|:-------:|
@@ -28,23 +28,23 @@ En concreto, el objetivo es extraer información de un número reducido de usuar
 
 Tiene en total 4 juegos en su biblioteca y de esos 4 juegos 2 tienen la etiqueta de Acción, otros 2 la etiqueta de Estrategia y 3 la de Aventuras. En el caso real se van a usar 31 etiquetas distintas.
 
-Primero se hará una exploración para visualizar los datos, después un análisis de componentes principales para la reducción de variables y finalmente un clustering para distinguir los jugadores en grupos.
+Primero se hará una exploración para visualizar los datos, después un análisis de componentes principales para la reducción de variables y finalmente un clústering para distinguir los jugadores en grupos.
 
-# Crear el dataset
+# Crear el conjunto de datos
 
-Todos los datos necesarios los he extraído de tres fuentes distintas que menciono en la siguiente subsección. El código fuente que he creado en Python3 está disponible en <https://github.com/xsaga/steamCrawl> en el archivo `steamcrawltags.py` (incluye comentarios). Hay dos datasets disponibles en la misma pagina, el principal es `tagsData.csv`, el otro dataset `valveemployee.csv` incluye la información de si el usuario es empleado de *Valve* o no.
+Todos los datos necesarios los he extraído de tres fuentes distintas que menciono en la siguiente subsección. El código fuente que he creado en Python3 está disponible en <https://github.com/xsaga/steamCrawl> en el archivo `steamcrawltags.py` (incluye comentarios). Hay dos datasets disponibles en la misma pagina, el principal es `tagsData.csv`, que se ha creado usando el programa `steamcrawltags.py`. El otro dataset `valveemployee.csv` incluye la información de si el usuario es empleado de *Valve* o no.
 
 ## Extracción de los datos
 
-1. **Descargar la lista de juegos de cada usuario:** Cada usuario de *Steam* tiene un identificador único (SteamID). Usando este identificador y la página oficial de la comunidad de *Steam* de cada usuario <http://steamcommunity.com/> se puede acceder al perfil de cada jugador (a no ser que el perfil sea privado). La lista de todos los juegos que tiene el usuario SteamID se puede acceder en esta dirección <http://steamcommunity.com/profiles/SteamID/games/?tab=all> sustituyendo [SteamID] por el identificador válido. En el código HTML de la página hay una variable `var rgGames` que contiene la lista detallada de los juegos en formato JSON^[JavaScript Object Notation] que se puede descargar fácilmente.
+1. **Descargar la lista de juegos de cada usuario:** Cada usuario de *Steam* tiene un identificador único (SteamID), los SteamID se asignan consecutivamente empezando desde el número 76561197960265728. Usando este identificador y la página oficial de la comunidad de *Steam* de cada usuario <http://steamcommunity.com/> se puede acceder al perfil de cada jugador (a no ser que el perfil sea privado). La lista de todos los juegos que tiene el usuario SteamID se puede acceder en esta dirección <http://steamcommunity.com/profiles/SteamID/games/?tab=all> sustituyendo SteamID por el identificador numérico válido. En el código HTML de la página hay una variable `var rgGames` que contiene la lista detallada de los juegos en formato JSON^[JavaScript Object Notation] que se puede descargar fácilmente.
 
-2. **Extraer las etiquetas de cada juego:** Después de descargar la lista de juegos de cada usuario vamos a extraer las etiquetas de cada juego usando la API pública que ofrece la página <https://steamspy.com/>. Cada juego tiene un identificador único que se puede usar para pedir la información. Por ejemplo, el juego *Half-Life 2* tiene el identificador 220 y se puede acceder a sus metadatos usando la siguiente dirección <http://steamspy.com/api.php?request=appdetails&appid=220> otra vez en formato JSON.
+2. **Extraer las etiquetas de cada juego:** Después de descargar la lista de juegos de cada usuario, vamos a iterar sobre todos los juegos del usuario para extraer las etiquetas de cada juego usando la API pública que ofrece la página <https://steamspy.com/>. Cada juego tiene un identificador único que se puede usar para pedir la información. Por ejemplo, el juego *Half-Life 2* tiene el identificador 220 y se puede acceder a sus metadatos usando la siguiente dirección <http://steamspy.com/api.php?request=appdetails&appid=220> otra vez en formato JSON. De todos los metadatos del juego, solo nos interesan sus tags (se ordenan de mayor a menor relevancia). De todas las etiquetas que tiene el juego no extraemos todas, solo las que nos interesan. Estas etiquetas (junto al SteamID y el número de juegos) son las variables de cada usuario. Cada vez que se encuentra en un juego una etiqueta que nos interesa, se aumenta el contador para esa etiqueta.
 
-3. **Información adicional de cada usuario:** Es interesante saber la información básica de cada usuario, por ejemplo si el usuario es un empleado de *Valve Corporation*. Para ello se ha usado la siguiente página <https://steamid.eu/>
+3. **Información adicional de cada usuario:** Es interesante saber la información básica de cada usuario, por ejemplo si el usuario es un empleado de *Valve Corporation* o un usuario normal. Para ello se ha usado la siguiente página <https://steamid.eu/> (esto se ha hecho manualmente, no con el programa).
 
-Para el dataset se han usado 33 variables: 2 de información general y 31 etiquetas de juegos. En total, *Steam* tiene más de 300 etiquetas disponibles para clasificar los juegos, pero yo he seleccionado las más populares y otras que me interesaban.
+Para el dataset se han usado 33 variables: 2 de información general (SteamID y el número de juegos) y 31 etiquetas de juegos (los tags). En total, *Steam* tiene más de 300 etiquetas disponibles para clasificar los juegos, pero he seleccionado las más populares y otras que me interesaban.
 
-se han analizado 1500 usuarios distintos pero de esos solo 293 son validos (perfiles públicos y con al menos un juego). En total se han analizado las etiquetas de 10420 juegos distintos. Los detalles se pueden ver en el código disponible en GitHub.
+El SteamID inicial es el número 76561197960265728 y se ha ido incrementando ese número hasta analizar 1500 usuarios distintos, pero de todos esos usuarios solo 293 son válidos (perfiles públicos y con al menos un juego). **Es muy importante resaltar que como se han ido analizando los usuarios empezando desde el SteamID más bajo (el primer ID de todos), todos los 293 usuarios que se han recogido en este dataset son usuarios "veteranos" de la plataforma de *Steam*, es decir, usuarios que llevan años en la plataforma y no usuarios nuevos**. En total se han analizado las etiquetas de 10420 juegos distintos. Los detalles se pueden ver en el código disponible en GitHub. 
 
 ## Descripción de las variables
 
@@ -56,7 +56,7 @@ Una breve explicación del significado de cada variable es la siguiente:
 * `Action` : Acción.
 * `Adventure` : Aventuras.
 * `Strategy` : Estrategia en general.
-* `Simulation` : Juegos de simulación (conducción, vuelo, construcción...).
+* `Simulation` : Juegos de simulación (conducción, vuelo, construcción, simuladores de física...).
 * `RPG` : Role Playing Game.
 * `Free.to.Play` : Modelo de negocio en el que los juegos son gratuitos pero hay que pagar por añadidos dentro del juego como nuevos personajes o equipamiento.
 * `Early.Access` : Modelo de negocio en el que un juego que aun no está terminado se pone a la venta por un precio reducido. El dinero que se consigue con las ventas se usa para financiar el juego y terminarlo.
@@ -98,7 +98,7 @@ library(NbClust)
 library(cluster)    # siluetas
 ```
 
-Cargar los dos datasets. `steam` es el dataset principal, en `valve` se guarda la información para saber si un usuario es empleado de *Valve* o no.
+Primero vamos a cargar los dos datasets. `steam` es el dataset principal, en `valve` se guarda la información para saber si un usuario es empleado de *Valve* o no.
 ```{r cargar-dataset}
 steam <- read.csv("/home/xabier/Documentos/src/steamCrawl/tagsData.csv",
                   colClasses=c(steamid="character"))
@@ -108,7 +108,7 @@ valve <- read.csv("/home/xabier/Documentos/src/steamCrawl/valveemployee.csv",
 ```
 
 ```{r head-dataset}
-head(steam[,1:8])
+head(steam[,1:8]) # las 8 primeras variables
 head(valve)
 ```
 
@@ -118,7 +118,7 @@ table(valve$VALVE)
 ```
 
 
-Las variables en `steam` no están ordenadas de ningún modo en particular. Por eso, en la siguiente lista voy a reordenar las etiquetas de modo que las que sean similares estén agrupadas.
+Las variables en `steam` no están ordenadas de ningún modo en particular. Por eso, en la siguiente lista vamos a reordenar las etiquetas de modo que las que sean similares estén agrupadas. Esta lista se usará más adelante.
 ```{r orden-generos}
 # orden de las variables(generos) agrupados por temas
 orden.generos <- c(3,9,10,11,15,16,12,14,            # otros y deportes
@@ -150,9 +150,9 @@ plot2 <- ggplot(valve, aes(x=VALVE, y=nJuegos, col=VALVE))+
 grid.arrange(plot2, plot1, ncol=2)
 ```
 
-Se puede ver claramente que los que son empleados de *Valve* tienden a tener más juegos. No he encontrado una explicación oficial sobre esto, pero en Internet se pueden leer varios comentarios^[https://www.reddit.com/r/Steam/comments/2qtrrx/so_you_think_gabe_newell_can_play_any_game_he/cn9hvfl/]  hablando sobre que los empleados de *Valve* tienen un paquete especial que les permite comprar por 0€ cualquier juego dentro de la plataforma *Steam*. Otra explicación sería simplemente que al ser desarrolladores de videojuegos, tienen una pasión especial por ellos. 
+Se puede ver claramente que los que son empleados de *Valve* tienden a tener más juegos. No he encontrado una explicación oficial sobre esto, pero en Internet se pueden encontrar varios comentarios^[https://www.reddit.com/r/Steam/comments/2qtrrx/so_you_think_gabe_newell_can_play_any_game_he/cn9hvfl/]  hablando sobre que los empleados de *Valve* tienen un paquete especial que les permite comprar por 0€ cualquier juego dentro de la plataforma *Steam*. Otra explicación sería simplemente que al ser desarrolladores de videojuegos, tienen una pasión especial por ellos. 
 
-La siguiente figura es el histograma de la frecuencia en función del número de juegos. La anchura de cada barra es de 20 juegos y la última barra representa el número de usuarios con mas de 800 juegos. La mayoría de usuarios tiene entre 1 y 20 juegos.
+La siguiente figura es el histograma de la frecuencia en función del número de juegos. La anchura de cada barra es de 20 juegos y la última barra representa el número de usuarios con más de 800 juegos. La mayoría de usuarios tiene entre 1 y 20 juegos.
 
 ```{r histograma}
 ggplot(steam, aes(x=nJuegos))+
@@ -168,7 +168,8 @@ summary(steam$nJuegos)
 Ahora vamos a visualizar el número total de cada etiqueta. Las barras representan la suma total de cada columna (etiqueta). La figura está ordenada de mayor a menor. Claramente la etiqueta de Acción es la más popular de todas. En general los juegos de disparos (`Shooter` y `FPS`) son de lo más frecuentes, después están los juegos de habilidad, estrategia y plataformas. Los menos frecuentes son los juegos de carreras, deportes `JRPG` y `MMORPG`.
 
 ```{r conteo-etiquetas}
-total.genero <- data.frame(genero=colnames(steam)[3:ncol(steam)],  total=sapply(steam[,3:ncol(steam)],sum))
+total.genero <- data.frame(genero=colnames(steam)[3:ncol(steam)],
+                           total=sapply(steam[,3:ncol(steam)],sum))
 total.genero <- total.genero[order(total.genero$total, decreasing=FALSE),]
 
 # para que ggplot no los ordene alfabeticamente
@@ -181,16 +182,16 @@ ggplot(data=total.genero, aes(x=genero, y=total, color=genero, fill=genero))+
     coord_flip()
 ```
 
-Antes de empezar con el análisis vamos a quitar los usuarios que tienen un número de juegos mucho mayor que el resto, los outliers. Vamos a Considerar outliers a jugadores con mas de 1000 juegos.
+Antes de empezar con el análisis vamos a quitar los usuarios que tienen un número de juegos mucho mayor que el resto, los outliers. Vamos a considerar outliers a jugadores con mas de 1000 juegos. Los nuevos `data.frames` sin los outliers son `steam.filtrado` y `valve.filtrado`.
 
 ```{r rm-outliers}
 outliers <- which(steam$nJuegos > 1000)
 
 steam.filtrado <- steam[-outliers,]
-rownames(steam.filtrado) <- 1:nrow(steam.filtrado)
+rownames(steam.filtrado) <- 1:nrow(steam.filtrado) #renombrar
 
 valve.filtrado <- valve[-outliers,]
-rownames(valve.filtrado) <- 1:nrow(valve.filtrado)
+rownames(valve.filtrado) <- 1:nrow(valve.filtrado) #renombrar
 ```
 
 Hemos eliminado a `r length(outliers)` usuarios con más de 1000 juegos.
@@ -222,7 +223,7 @@ plot4 <- ggplot(steam.molten, aes(x=variable, y=value, fill=variable))+
 grid.arrange(plot3, plot4, ncol=2)
 ```
 
-En la siguiente imagen están los boxplots de todas las etiquetas.
+En la siguiente imagen están los boxplots para todas las etiquetas. Para que se pueda ver la distribución de cada una.
 
 ```{r boxplots-molten-all}
 # todos los generos
@@ -234,11 +235,11 @@ ggplot(steam.molten, aes(x=variable, y=value, fill=variable, color=variable))+
     coord_flip()
 ```
 
-Para hacer una visualización multivariante de cada usuario vamos a explorar los radarchart. 31 variables (las que corresponden solo a las etiquetas) son muchas para visualizarlas todas a la vez, pero como se verá en el siguiente apartado, están muy correlacionadas entre sí. Además, si en vez de visualizarlas en cualquier orden, las ordenamos según la similitud de las etiquetas como ya hemos hecho al principio de todo en la variable `orden.generos`, se puede conseguir una visualización bastante clara del gusto de cada usuario.
+Para hacer una visualización multivariante de cada usuario vamos a explorar los radarchart. 31 variables (las que corresponden solo a las etiquetas) son muchas para visualizarlas todas a la vez, pero como se verá en el siguiente apartado, están muy correlacionadas entre sí. Además, si en vez de visualizarlas en cualquier orden, las ordenamos según la similitud de las etiquetas --como ya hemos hecho al principio de todo en la variable `orden.generos`-- se puede conseguir una visualización bastante clara del gusto de cada usuario.
 
 Lo siguiente es una función para comparar dos usuarios distintos en un mismo radarchart. Las variables se ordenan de tal modo que en la parte derecha del radarchart se queden las etiquetas que mejor representan a juegos de acción/disparos/violentos, en la parte izquierda los juegos de estrategia y habilidad, en la parte inferior los juegos de terror/zombis y en la superior el resto.
 
-De este modo se puede ver de un vistazo que clase de juegos prefiere el usuario.
+De este modo se puede ver de un vistazo qué clase de juegos prefiere el usuario.
 
 ```{r function-radarchart}
 radchart2 <- function(data1, data2){
@@ -272,31 +273,31 @@ radchart2 <- function(data1, data2){
 # http://blog.scottlogic.com/2011/09/23/a-critique-of-radar-charts.html
 ```
 
-Vamos a aplicar la función anterior a dos usuarios.
+Vamos a aplicar la función anterior a dos usuarios. Estos dos usuarios (número 56 y 21) se han escogido de tal modo que tengan un valor similar en la componente principal 1 y valores opuestos en la componente principal 2 (ver apartado "Procesado y análisis de los datos", PCA).
 ```{r}
-us1 <- 56 #111, 223
-us2 <- 21 #210, 96
+us1 <- 56 # 111, 223
+us2 <- 21 # 210, 96
 valve.filtrado[c(us1, us2),]
 ```
 
-Como se puede ver, el usuario número `r us1` y `r us2` tienen una cantidad mas o menos similar de juegos. Si aplicamos el radarchart a estos dos:
+Como se puede ver, el usuario número `r us1` y `r us2` tienen una cantidad más o menos similar de juegos. Si aplicamos el radarchart a estos dos:
 
 ```{r aplicar-radarchart}
 radchart2(steam.filtrado[us1,], steam.filtrado[us2,])
 ```
-Se puede ver que el usuario `r us1` destaca mucho en las etiquetas de Estrategia, Simulación e Indie[^indiefootnote] y muy poco en FPS y Shooter. En cambio el usuario `r us2` destaca sobre todo en Acción, FPS y Shooter y Horror. Los dos comparten prácticamente la misma puntuación en RPG.
+Se puede ver que el usuario `r us1` destaca mucho en las etiquetas de Estrategia, Simulación e Indie[^indiefootnote] y muy poco en FPS y Shooter. En cambio el usuario `r us2` destaca sobre todo en Acción, FPS, Shooter y Horror. Los dos comparten prácticamente la misma puntuación en RPG.
 
 [^indiefootnote]: Como se ha dicho en la introducción, Indie no es en sí un género, pero la mayoría de juegos independientes tienden más a la estrategia que a la acción.
 
-## Correlacion
+## Correlación
 
-Ahora vamos a analizar la correlación entre las distintas etiquetas.
+En este apartado vamos a analizar la correlación entre las distintas etiquetas, vamos a excluir `steamid` y `nJuegos` del análisis de correlación.
 
 ```{r correlacion}
 # correlacion de steam sin outliers
 correlacion <- cor(steam.filtrado[-c(1,2)])
 
-# ordenar las variables por generos similares
+# reordenar las variables por generos similares
 cor.orden <- correlacion[orden.generos-2, orden.generos-2]
 ```
 
@@ -314,18 +315,20 @@ mincor <- function(variable, mcor, n=3){
 }
 ```
 
-Vamos a aplicar estas funciones a unos casos:
+Vamos a aplicar estas funciones a unos casos en particular:
 
 ```{r correlacion-shooter}
 maxcor("Shooter", correlacion)
 mincor("Shooter", correlacion)
 ```
 
+Para `Shooter` las variables más correladas son `FPS`, `First.Person` y `Action`, mientras que las variables menos correladas corresponden a `Turn.Based.Strategy`, `MMORPG` y `Rogue.like`. Este resultado es muy razonable.
+
 ```{r correlacion-indie}
 maxcor("Indie", correlacion, 4)
 ```
 
-Ya he mencionado antes (en la introducción y en la nota a pie de página 7) que los juegos independientes son en general juegos de habilidad y estrategia.
+Ya he mencionado antes que los juegos independientes son en general juegos de habilidad y estrategia.
 
 ```{r correlacion-survival}
 maxcor("Survival", correlacion, 5)
@@ -375,9 +378,9 @@ qplot(x=Var1, y=Var2, data=melt(cor.orden), fill=value, geom="tile") +
 
 En general la correlación es alta (positiva) entre todas las variables. Esto tiene sentido ya que los juegos no tienen un único género, sino que mezclan distintos géneros a la vez. Además la gente no se suele centrar solamente en un mismo tipo de juego, prueba distintos géneros.
 
-La alta correlación entre `Shooter`, `FPS` y `First.Person` se ve fácilmente. También se puede ver que hay una alta correlación entre `Puzzle`, `Platformer` y `Difficult`, muy razonable. `Strategy`, `Turn.Based.Strategy` y `Simulation` también.
+La alta correlación entre `Shooter`, `FPS` y `First.Person` se ve fácilmente. También se puede ver que hay una alta correlación entre `Puzzle`, `Platformer` y `Difficult`. `Strategy`, `Turn.Based.Strategy` y `Simulation` también.
 
-También puede ser interesante reordenar las variables según los coeficientes de correlación, en vez de hacerlo a mano. La función corrplot en el paquete corrplot tiene distintos algoritmos para reordenar las variables. Ordenándolo según un clústering jerárquico el resultado es el siguiente:
+También puede ser interesante reordenar las variables según los coeficientes de correlación, en vez de hacerlo a mano. La función `corrplot` en el paquete `corrplot` tiene distintos algoritmos para reordenar las variables. Ordenándolo según un clústering jerárquico el resultado es el siguiente:
 
 ```{r con-corrplot}
 corrplot(correlacion, order="hclust", addrect=12,
@@ -390,18 +393,21 @@ Los resultados del clústering son realmente buenos. Consigue agrupar las etique
 
 ## Análisis de componentes principales (PCA)
 
-En este apartado vamos a hacer un PCA para reducir las variables de los datos. Antes de empezar hay que decidir si estandarizamos las variables o no (solo centradas). Por otra parte, hemos visto en el apartado anterior que las tres variables `Shooter`, `FPS` y `First.Person` están tan correlacionadas que podríamos considerarlas las mismas etiquetas. En las siguientes páginas[^pca1] y[^pca2] he encontrado comentarios que recomiendan (otros no) quitar las variables muy altamente correladas antes de aplicar PCA, porque al incluirlas el PCA aumentaría demasiado la contribución de esas variables redundantes (aunque todos tengan la misma dirección del autovector, el autovalor aumenta mucho y enmascara los otros).
+En este apartado vamos a hacer un PCA para reducir las variables de los datos. El PCA solo se va a hacer a las variables que sean etiquetas de juegos, es decir, a todas las variables menos `steamid` y `nJuegos`. Antes de empezar hay que decidir si estandarizamos las variables o no (solo centradas). Por otra parte, hemos visto en el apartado anterior que las tres variables `Shooter`, `FPS` y `First.Person` están tan correlacionadas que podríamos considerarlas las mismas etiquetas. En las siguientes páginas[^pca1] y[^pca2] he encontrado comentarios que recomiendan (otros no) quitar las variables muy altamente correladas antes de aplicar PCA, porque al incluirlas el PCA aumentaría demasiado la contribución de esas variables redundantes (aunque todos tengan la misma dirección del autovector, el autovalor aumenta mucho y enmascara los otros).
 
 [^pca1]: https://stats.stackexchange.com/questions/50537/should-one-remove-highly-correlated-variables-before-doing-pca
 [^pca2]: https://stat.ethz.ch/pipermail/r-sig-ecology/2013-March/003624.html
 
-Entre filtrar `FPS` y `First.Person` (para quedarnos solo con `Shooter`) o no filtrar nada no he encontrado grandes diferencias, al final he decidido no filtrar nada (excepto `steamid` y `nJuegos`) porque de este modo la interpretación de los componentes me parecía más intuitiva. También he decidido no estandarizar las variables por la misma razón.
+Entre escalar las variables para tener todas varianza = 1, o solo centrar las variables he decidido no escalarlas. Si se escalan, todas las etiquetas tienen el mismo peso, pero en este caso considero que es importante mantener el peso original de cada etiqueta para remarcar que todos los géneros no son igual de populares. Además comparando la interpretación de las componentes principales con las variables escaladas y sin escalar, me parecen más intuitivas cuando las variables no han sido escaladas.
+
+Entre filtrar `FPS` y `First.Person` (para quedarnos solo con `Shooter`) o no filtrar nada no he encontrado grandes diferencias, pero al final he decidido no filtrar nada (excepto `steamid` y `nJuegos`) porque de este modo la interpretación de los componentes me parece más intuitiva.
 
 ```{r pca}
 filtro1 <- c(1, 2)        # sin steamid, nJuegos
 filtro2 <- c(1, 2, 21, 22)# sin steamid, nJuegos, FPS, First.Person
-filtro <- filtro1
-steam.pca <- prcomp(steam.filtrado[-filtro], scale. = FALSE)
+filtro <- filtro1 # filtro1
+escalado <- FALSE # FALSE
+steam.pca <- prcomp(steam.filtrado[-filtro], scale. = escalado)
 ```
 
 Scree graph de los 10 primeros autovalores. La primera componente destaca mucho debido a la alta correlación que tienen todas las variables entre sí.
@@ -428,7 +434,7 @@ ggplot(steam.pca.x , aes(x=PC1, y=PC2, color=nJuegos))+
     theme(legend.position = "right")
 ```
 
-Para ver la interpretación de las componentes vamos a calcular la correlación entre los datos originales y las componentes[^interpretarcomponentes].
+Para ver la interpretación de las tres primeras componentes, vamos a calcular la correlación entre los datos originales y las componentes[^interpretarcomponentes].
 
 [^interpretarcomponentes]: http://www.aaronschlegel.com/principal-component-analysis/
 
@@ -436,24 +442,35 @@ Para ver la interpretación de las componentes vamos a calcular la correlación 
 cor(steam.filtrado[-filtro], steam.pca$x[,1:3])
 ```
 
-La correlación entre las variables con PC1 es muy grande y positiva para todos los casos, por lo que añadir un juego más a la biblioteca, sea del género que sea, va a aumentar el valor de PC1. Esa es la razón por la que en la gráfica anterior el número de juegos (alternativamente, el dinero gastado) sea proporcional a PC1. En el caso de PC2 la interpretación es más interesante. Si solo nos fijamos en el signo[^nota-signo] de la correlación se puede ver que casi todas las etiquetas que contribuyen negativamente a PC2 son etiquetas de juegos de acción/violentos, mientras que los que contribuyen positivamente son más de estrategia/RPG/plataformas.
+La correlación entre las variables con PC1 es muy grande y positiva para todos los casos, por lo que añadir un juego más a la biblioteca, sea del género que sea, va a aumentar el valor de PC1. Esa es la razón por la que en la gráfica anterior el número de juegos (alternativamente, el dinero gastado) sea proporcional a PC1. En el caso de PC2 la interpretación es más interesante. Si solo nos fijamos en el signo[^nota-signo] de la correlación se puede ver que casi todas las etiquetas que contribuyen negativamente a PC2 son etiquetas de juegos de acción/violentos/..., mientras que los que contribuyen positivamente son más de estrategia/RPG/plataformas/...
 
-[^nota-signo]: El signo es arbitrario y puede ser diferente si se ejecuta el programa en otro sistema operativo o versión de R.
+[^nota-signo]: El signo es arbitrario y puede ser diferente si se ejecuta el programa en otro sistema operativo o versión de `R`.
 
+La siguiente función devuelve las correlaciones más fuertes para un componente dado.
 ```{r fun-interpretar}
 interpretar <- function(indice, limite){
     m <- cor(steam.filtrado[-filtro], steam.pca$x[,indice])
     m <- m[abs(m[,1]) > limite,, drop=FALSE]
     return(m)
 }
-
-interpretar(2, 0.3)
 ```
 
+Estas son las correlaciones más importantes para PC2 y PC3. 
+```{r aplicar-fun-interpretarPC2}
+interpretar(2, 0.29)
+```
+
+Las correlaciones con más peso en PC2 reflejan lo que se ha dicho anteriormente, el aporte positivo más importante es para `Indie`, `Platformer`, `Rogue.like` y `Puzzle`; el aporte negativo más relevante es de `Shooter`, `FPS`, `First.Person` y `Zombies`.
+
+```{r aplicar-fun-interpretarPC3}
+interpretar(3, 0.29)
+```
+
+Para PC3 las variables más relevantes en su mayoría hacen un aporte negativo, excepto para `Horror` y `Psychological.Horror` con un aporte positivo.
 
 ## Kmeans clustering
 
-En este apartado vamos a explorar Kmeans clustering para agrupar a los usuarios similares. Primero ponemos una semilla al generador de números aleatorios para conseguir resultados reproducibles. Para hacer el Kmeans vamos a usar las primeras 7 componentes principales, ya que son suficientes para explicar más del 99% de la varianza de los datos.
+En este apartado vamos a explorar Kmeans clústering para agrupar a los usuarios similares. Primero ponemos una semilla al generador de números aleatorios para conseguir resultados reproducibles. Para hacer el Kmeans vamos a usar las primeras 7 componentes principales, ya que son suficientes para explicar más del 99% de la varianza de los datos.
 
 ```{r varianza-explicada}
 sum(steam.pca$sdev[1:7]^2)/sum(steam.pca$sdev^2)
@@ -467,11 +484,11 @@ set.seed(1939)
 datos <- steam.pca.x[c(3:9)]
 ```
 
-En principio, no sabemos el número de clusters ideales para este problema en particular. Primero vamos a hacer unas pruebas basadas en el índice de bondad, después usaremos el índice de las siluetas y para acabar usaremos la librería NbClust para calcular otros índices.
+En principio, no sabemos el número de clústers ideales para este problema en particular. Para determinar el número de clústers, vamos a hacer primero unas pruebas basadas en el índice de bondad, después usaremos el índice de las siluetas y para acabar usaremos la librería `NbClust` para calcular otros índices.
 
 ### Índice de bondad
 
-El índice de bondad expresa el porcentaje de la variabilidad total explicada debido a la variabilidad intra-clase (between). Vamos a calcular el índice de bondad usando el valor de `k` d 1 a 20.
+El índice de bondad expresa el porcentaje de la variabilidad total explicada debido a la variabilidad intra-clase (between). Vamos a calcular el índice de bondad usando el valor de `k` entre 1 y 20.
 
 ```{r loop-indice-bondad}
 kvals <- c(1:20)
@@ -484,7 +501,7 @@ plot(ib*100, type="b", xlab="clusters", ylab="betweenSS/totSS (%)", main="índic
 abline(v=1:5, col="gray")
 ```
 
-Se puede ver que el codo de la curva se consigue para k=3,4 con un IB de unos 85%.
+Se puede ver que el codo de la curva se consigue para k=3, 4 con un índice de bondad de unos 85%.
 
 ### Índice de siluetas
 
@@ -506,7 +523,7 @@ for(k in 2:length(kvals)){
 plot(avg.width, type="b", las=1, xlab="k", main="índice silueta")
 ```
 
-El mayor índice de silueta se consigue con k=2.
+El mayor índice de silueta se consigue para k=2. Podemos comparar las siluetas con el valor k=2 que recomienda el valor medio del índice de siluetas con k=4 del índice de bondad.
 
 ```{r}
 par(mfrow=c(1,2))
@@ -523,7 +540,7 @@ par(mfrow=c(1,1))
 
 ### Usando la librería NbClust
 
-La librería `NbClust` ofrece 30 índices distintos para determinar el número óptimo de clusters.
+La librería `NbClust` ofrece 30 índices distintos para determinar el número óptimo de clústers. Vamos a ver qué valor de `k` nos recomienda esta librería para nuestros datos.
 
 ```{r}
 nb <- NbClust(datos, diss=distancias, distance=NULL, 
@@ -531,11 +548,11 @@ nb <- NbClust(datos, diss=distancias, distance=NULL,
               index = "all")
 ```
 
-Según la recomendación de `NbClust` el número óptimo de clusters es 2 por mayoría (8 votos), aun así, considero que 2 es un número muy pequeño y voy a probar con 4 clusters (6 votos) que es lo mismo que recomienda el índice de bondad.
+Según la recomendación de `NbClust` el número óptimo de clústers es 2 por mayoría (8 votos), aun así, considero que 2 es un número muy pequeño y voy a probar con 4 clústers (6 votos) que es lo mismo que recomienda el índice de bondad.
 
 ```{r}
 set.seed(2017)
-nClust <- 4 #4
+nClust <- 4 # 4
 km <- kmeans(datos, nClust, nstart=100, iter.max=100000)
 
 plot(steam.pca.x[,3], steam.pca.x[,4], xlab = "PC1", ylab="PC2",
@@ -545,18 +562,18 @@ points(km$centers[,1:2], pch=23, col="black",
        bg=c("red", "green3", "blue", "black"), cex=1.5)
 
 # linea vertical sobre el valor medio de PC1 para los usuarios
-# que tengan menos juegos que la mediana de nJuegos para cluster 1
+# que tengan el numero de juegos igual a la mediana de nJuegos para cluster 1
 medianClus1 <- median(steam.filtrado[which(km$cluster == 1),2]) # = 19
-meanPC1 <- mean(steam.pca.x[which(steam.filtrado$nJuegos < medianClus1),3])
+meanPC1 <- mean(steam.pca.x[which(steam.filtrado$nJuegos == medianClus1),3])
 abline(v=meanPC1, lty=2, lwd=2)
 
 legend("topleft", legend=km$size, pch=23, box.lty=0,
        pt.bg=c("red", "green3", "blue", "black"), title="usuarios/cluster")
 ```
 
-En la figura se pueden ver todos los usuarios representados en el plano de las dos primeras componentes principales, separados en `r nClust` clusters, junto a los centros de los clusters. También se ha separado el plano con una linea vertical para el valor de PC1 = `r meanPC1`. Esta linea vertical representa el valor medio de PC1 para aquellos usuarios que tienen menos juegos que la mediana del número de juegos para el cluster 1 (mediana = `r medianClus1`). La explicación de esta linea vertical se verá en el siguiente paso.
+En la figura se pueden ver todos los usuarios representados en el plano de las dos primeras componentes principales, separados en `r nClust` clústers, junto a los centros de los clústers. También se ha separado el plano con una linea vertical para el valor de PC1 = `r meanPC1`. Esta linea vertical representa el valor medio de PC1 para aquellos usuarios que tienen el número de juegos igual a la mediana del número de juegos para el clúster 1 (mediana = `r medianClus1`). La explicación de esta linea vertical se verá en el siguiente paso.
 
-Ahora vamos a visualizar el boxplot del número de juegos que tiene cada usuario separados por clusters.
+Ahora vamos a visualizar el boxplot del número de juegos que tiene cada usuario separados por clústers.
 
 ```{r}
 juegosPerClust <- data.frame(cluster=integer(), nJuegos=integer())
@@ -570,16 +587,17 @@ ggplot(juegosPerClust, aes(x=cluster, y=nJuegos, fill=cluster))+geom_boxplot()
 ```
 
 
-Para intentar ver si se puede sacar algo más de información sobre los usuarios de cada cluster, vamos a extraer los `steamid` por cada cluster y explorar un poco el perfil de cada usuario usando la página <https://steamid.eu/multiple-steam-id-finder/> que permite hacer una búsqueda sobre una lista de `steamid`s.
+Para intentar ver si se puede sacar algo más de información sobre los usuarios de cada clúster, vamos a extraer los `steamid` por cada clúster y explorar un poco el perfil de cada usuario usando la página <https://steamid.eu/multiple-steam-id-finder/> que permite hacer una búsqueda sobre una lista de `steamid`s.
 
-En el cluster 1, hay 96 usuarios con un número de juegos menor que la mediana del número de juegos del cluster 1 (usuarios a la izquierda de la linea vertical discontinua de antes). De esos 96 usuarios solo 11 son activos, la fecha de última conexión varía desde unos pocos días hasta 5 meses. Los 85 restantes son cuentas abandonadas (la fecha de última conexión llega hasta los 12 años) o cuentas suspendidas por el sistema anti-trampas (VAC, Valve Anti Cheat). En el cluster 1, los que tienen más juegos que la mediana, prácticamente la mayoría son usuarios activos (excepto unas 10 cuentas abandonadas de un total de 103). En el cluster dos todos son activos. Para todos los otros clusters todos los jugadores son activos.
+En el clúster 1, hay 96 usuarios con un número de juegos menor que la mediana del número de juegos del clúster 1 (usuarios a la izquierda de la linea vertical discontinua de antes). De esos 96 usuarios solo 11 son activos, la fecha de última conexión varía desde unos pocos días hasta unos meses. Los 85 restantes son cuentas abandonadas (la fecha de última conexión llega hasta los 12 años) o cuentas suspendidas por el sistema anti-trampas (VAC, Valve Anti Cheat). En el clúster 1, los que tienen más juegos que la mediana, prácticamente la mayoría son usuarios activos (excepto unas 10 cuentas abandonadas de un total de 103). Para todos los otros clústers todos los jugadores son activos. Es muy importante resaltar que esto último no significa que en general (para cualquier usuario de *Steam*), aquellos que tengan menos que 19 juegos son cuentas abandonadas. Lo que realmente está pasando aquí es que --como se ha dicho en en primer apartado "Crear el conjunto de datos"-- en el conjunto de datos que he extraído, todos los usuarios son usuarios que crearon su cuenta de *Steam* hace muchos años (son usuarios veteranos) por lo tanto, esas cuentas muertas son probablemente de personas que perdieron la contraseña, les robaron la cuenta de algún modo, suspendidos por hacer trampas, etc. 
 
+Código para sacar los SteamID de cada clúster:
 ```{r}
 for(k in 1:nClust){
     #print(sprintf("steamid para Cluster %d:", k))
     for(i in which(km$cluster == k)){
         if(steam.filtrado[i,2] < median(steam.filtrado[which(km$cluster == k),2]) ){
-             #print(steam.filtrado[i,1])
+             #print(steam.filtrado[i,1]) # print steamid
         }
     } 
 }
@@ -587,7 +605,10 @@ for(k in 1:nClust){
 
 # Conclusiones
 
-cosas sobre dataset, secuencial, no aleatorio, el nde juegos es en realidad el numero de "aplicaciones"...
-Correlación hclust muy buenos resultados
+En este trabajo se ha analizado un conjunto de datos sobre 293 usuarios de *Steam* en el que cada usuario se ha definido con una serie de etiquetas (33 variables) que representan los distintos géneros de videojuegos que tiene en su biblioteca (siendo la etiqueta `Action` la más popular de todas). Con el análisis de la correlación entre las etiquetas se ha visto que en general la correlación es muy alta debido a que los juegos suelen mezclan muchos géneros a la vez. Lo más sorprendente es que ordenando las etiquetas según un clústering jerárquico en la matriz de correlación, se consiguen agrupar las etiquetas de un modo muy realista.
 
-Por lo que se puede decir que los jugadores con menos de 19 juegos son la mayoría cuentas muertas, hay que tener en cuenta que este dataset ha escaneado desde el principio de las cuentas de steam, así que estos son usuarios que se hicieron la cuenta hace muchos años pero no han vuelto a jugar. ver en
+Con el análisis de componentes principales se ha visto que las dos primeras componentes retienen el 92% de la varianza. PC1 representa indirectamente la cantidad de juegos del usuario, mientras que PC2 puede distinguir entre los usuarios que prefieren juegos de acción/violencia... entre los que prefieren más la estrategia/plataformas...
+
+El clústering principalmente agrupa a los usuarios que tienen un número similar de juegos. Una observación interesante es que para el clúster de los jugadores con menos juegos, aquellos usuarios que tienen menos juegos que la mediana del grupo (19 juegos), son cuentas abandonadas o suspendidas por el sistema anti-trampas. La interpretación de este resultado hay que hacerlo con cuidado, no hay nada negativo en tener menos de 19 juegos, lo que pasa es que este conjunto de datos se ha creado escaneando desde el principio de las cuentas de *Steam*, así que estos son usuarios que se hicieron la cuenta hace muchos años pero no han vuelto a jugar por diversas razones.
+
+Una alternativa a este conjunto de datos, sería extraer la misma información pero seleccionando los SteamID de un modo aleatorio en vez de incrementar consecutivamente el SteamID empezando desde el primero.
